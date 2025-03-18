@@ -8,4 +8,6 @@ RUN go mod tidy
 
 RUN go build -o frappuccino
 
+EXPOSE 8080
+
 CMD ["./frappuccino"]
