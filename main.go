@@ -1,13 +1,15 @@
+// Файл: main.go
 package main
 
 import (
-	"frappuccino/db"
+	"frappuccino/router"
 	"log"
 )
 
 func main() {
-	_, err := db.InitDB()
-	if err != nil {
-		log.Fatal("Failed to connect to DB:", err)
-	}
+	// Настроим маршруты
+	router.SetupRouter()
+
+	// Сервер теперь слушает на всех интерфейсах, а не только на localhost
+	log.Println("Server is running on http://0.0.0.0:8080")
 }
