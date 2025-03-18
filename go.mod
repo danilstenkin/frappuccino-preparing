@@ -1,4 +1,4 @@
-module github.com/danilstenkin/frappuccino
+module frappuccino
 
 go 1.21
 
