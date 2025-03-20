@@ -19,6 +19,8 @@ func SetupRouter() {
 	http.HandleFunc("/menu/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete {
 			handlers.DeleteMenuItemHandler(w, r)
+		} else if r.Method == http.MethodGet {
+			handlers.GetMenuItemsIDHandler(w, r)
 		}
 	})
 
