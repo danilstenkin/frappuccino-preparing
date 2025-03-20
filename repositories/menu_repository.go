@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"frappuccino/db"
 	"frappuccino/models"
+	"log"
+	"strconv"
 
 	"github.com/lib/pq"
 )
@@ -118,4 +120,50 @@ func GetMenuItems() ([]models.MenuItem, error) {
 	}
 
 	return items, nil
+}
+
+func DeleteMenuItem(idstr string) error {
+	// Преобразуем строку в int
+	idint, err := strconv.Atoi(idstr)
+	if err != nil {
+		return fmt.Errorf("ошибка при преобразовании ID: %v", err)
+	}
+
+	// Подключаемся к базе данных
+	dbConn, err := db.InitDB()
+	if err != nil {
+		log.Println("Не удалось подключиться к БД:", err)
+		return fmt.Errorf("не удалось подключиться к базе данных: %v", err)
+	}
+	defer dbConn.Close()
+
+	// Шаг 1: Удаляем зависимые записи из order_items
+	deleteQuery := `DELETE FROM order_items WHERE menu_item_id = $1`
+	_, err = dbConn.Exec(deleteQuery, idint)
+	if err != nil {
+		log.Println("Ошибка при удалении зависимых записей из order_items:", err)
+		return fmt.Errorf("не удалось удалить зависимые записи из order_items: %v", err)
+	}
+
+	// Шаг 2: Удаляем элемент из menu_items
+	query := `DELETE FROM menu_items WHERE id = $1`
+	result, err := dbConn.Exec(query, idint)
+	if err != nil {
+		log.Println("Ошибка при удалении элемента из menu_items:", err)
+		return fmt.Errorf("не удалось удалить элемент меню: %v", err)
+	}
+
+	// Получаем количество затронутых строк
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		log.Println("Ошибка при получении количества удалённых строк:", err)
+		return fmt.Errorf("ошибка при получении количества удалённых строк: %v", err)
+	}
+
+	// Если строка не была удалена
+	if rowsAffected == 0 {
+		return fmt.Errorf("элемент меню с ID %v не найден", idint)
+	}
+
+	return nil
 }
