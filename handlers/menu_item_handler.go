@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"frappuccino/db"
 	"frappuccino/models"
 	"frappuccino/repositories"
 	"frappuccino/utils" // Импортируем utils для проверки валидности
 	"log"
 	"net/http"
+	"strings"
 )
 
 func CreateMenuItemHandler(w http.ResponseWriter, r *http.Request) {
@@ -77,4 +79,21 @@ func GetMenuItemsHandler(w http.ResponseWriter, r *http.Request) {
 	// Шаг 2: Отправляем ответ с элементами меню в формате JSON
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(items)
+}
+
+func DeleteMenuItemHandler(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/menu/")
+
+	if id == "" {
+		http.Error(w, "ID not found", http.StatusBadRequest)
+		return
+	}
+
+	err := repositories.DeleteMenuItem(id)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Не удалось удалить элемент меню: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
