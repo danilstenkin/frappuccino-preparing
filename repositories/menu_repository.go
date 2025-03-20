@@ -167,3 +167,97 @@ func DeleteMenuItem(idstr string) error {
 
 	return nil
 }
+
+func GetMenuItemByID(idstr string) ([]models.MenuItem, error) {
+	// Преобразуем строку в int
+	idint, err := strconv.Atoi(idstr)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка при преобразовании ID: %v", err)
+	}
+
+	// Подключаемся к базе данных
+	dbConn, err := db.InitDB()
+	if err != nil {
+		log.Println("Не удалось подключиться к БД:", err)
+		return nil, fmt.Errorf("не удалось подключиться к базе данных: %v", err)
+	}
+	defer dbConn.Close()
+
+	// Запрос для получения элемента меню по ID
+	query := `SELECT id, name, description, price, category, allergens, customization_options, size, metadata 
+			  FROM menu_items WHERE id = $1`
+
+	var item models.MenuItem
+	var category []byte
+	var allergens []byte
+	var customizationOptions sql.NullString
+	var metadata sql.NullString
+	var size sql.NullString
+
+	// Выполняем запрос
+	err = dbConn.QueryRow(query, idint).Scan(
+		&item.ID,
+		&item.Name,
+		&item.Description,
+		&item.Price,
+		&category,
+		&allergens,
+		&customizationOptions,
+		&size,
+		&metadata,
+	)
+
+	if err == sql.ErrNoRows {
+		// Если записи с таким ID нет
+		return nil, fmt.Errorf("элемент меню с таким ID не найден")
+	} else if err != nil {
+		return nil, fmt.Errorf("ошибка при запросе элемента меню: %v", err)
+	}
+
+	// Преобразуем []byte category в []string с помощью pq.Array
+	if category != nil {
+		err = pq.Array(&item.Category).Scan(category)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка при сканировании категории: %v", err)
+		}
+	}
+
+	// Преобразуем []byte allergens в []string с помощью pq.Array
+	if allergens != nil {
+		err = pq.Array(&item.Allergens).Scan(allergens)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка при сканировании аллергенов: %v", err)
+		}
+	}
+
+	// Обработка customizationOptions, если оно не NULL
+	if customizationOptions.Valid {
+		err = json.Unmarshal([]byte(customizationOptions.String), &item.CustomizationOptions)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка при сканировании customization_options: %v", err)
+		}
+	} else {
+		item.CustomizationOptions = nil
+	}
+
+	// Обработка metadata, если оно не NULL
+	if metadata.Valid {
+		err = json.Unmarshal([]byte(metadata.String), &item.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка при сканировании metadata: %v", err)
+		}
+	} else {
+		item.Metadata = nil
+	}
+
+	// Обработка поля size
+	if size.Valid {
+		item.Size = size.String
+	} else {
+		item.Size = "" // Если size NULL, то можно установить значение по умолчанию
+	}
+
+	// Возвращаем элемент меню в виде слайса (т.к. мы ожидаем слайс в API)
+	items := []models.MenuItem{item}
+	return items, nil
+}
