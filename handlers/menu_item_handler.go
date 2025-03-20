@@ -97,3 +97,22 @@ func DeleteMenuItemHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func GetMenuItemsIDHandler(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/menu/")
+
+	if id == "" {
+		http.Error(w, "ID not found", http.StatusBadRequest)
+		return
+	}
+
+	items, err := repositories.GetMenuItemByID(id)
+	if err != nil {
+		http.Error(w, "Не удалось получить элементы меню: "+err.Error(), http.StatusBadRequest)
+		log.Println("Ошибка при получении элементов меню:", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(items)
+}
