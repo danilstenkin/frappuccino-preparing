@@ -24,6 +24,12 @@ func SetupRouter() {
 		}
 	})
 
+	http.HandleFunc("/inventory", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			handlers.GetInventoryHandler(w, r)
+		}
+	})
+
 	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
 		panic("Failed to start server: " + err.Error())
