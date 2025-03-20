@@ -16,6 +16,12 @@ func SetupRouter() {
 		}
 	})
 
+	http.HandleFunc("/menu/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			handlers.DeleteMenuItemHandler(w, r)
+		}
+	})
+
 	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
 		panic("Failed to start server: " + err.Error())
