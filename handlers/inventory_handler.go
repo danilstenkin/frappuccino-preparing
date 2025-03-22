@@ -126,3 +126,20 @@ func UpdateInventoryHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 }
+
+func DeleteInventoryHandler(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/inventory/")
+
+	if id == "" {
+		http.Error(w, "ID not found", http.StatusBadRequest)
+		return
+	}
+
+	err := repositories.DeleteInventoryItem(id)
+	if err != nil {
+		http.Error(w, "Не удалось удалить элемент инвентаря: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent) // 204 No Content
+}
