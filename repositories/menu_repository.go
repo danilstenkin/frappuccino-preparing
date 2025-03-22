@@ -261,3 +261,46 @@ func GetMenuItemByID(idstr string) ([]models.MenuItem, error) {
 	items := []models.MenuItem{item}
 	return items, nil
 }
+
+func UpdateMenuItem(idStr string, item models.MenuItem) error {
+	// Преобразуем ID в int
+	idInt, err := strconv.Atoi(idStr)
+	if err != nil {
+		return fmt.Errorf("неправильный формат ID: %v", err)
+	}
+
+	dbConn, err := db.InitDB()
+	if err != nil {
+		return fmt.Errorf("не удалось подключиться к БД: %v", err)
+	}
+	defer dbConn.Close()
+
+	// Сериализация JSONB полей
+	customizationOptionsJSON, err := json.Marshal(item.CustomizationOptions)
+	if err != nil {
+		return fmt.Errorf("could not serialize customization_options: %v", err)
+	}
+	metadataJSON, err := json.Marshal(item.Metadata)
+	if err != nil {
+		return fmt.Errorf("could not serialize metadata: %v", err)
+	}
+
+	// Обновление записи
+	query := `UPDATE menu_items SET name=$1, description=$2, price=$3, category=$4, allergens=$5, customization_options=$6, size=$7, metadata=$8 WHERE id=$9`
+
+	result, err := dbConn.Exec(query, item.Name, item.Description, item.Price, pq.Array(item.Category), pq.Array(item.Allergens),
+		customizationOptionsJSON, item.Size, metadataJSON, idInt)
+	if err != nil {
+		return fmt.Errorf("ошибка при обновлении элемента меню: %v", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("ошибка получения количества обновленных строк: %v", err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("элемент меню с ID %v не найден", idInt)
+	}
+
+	return nil
+}
