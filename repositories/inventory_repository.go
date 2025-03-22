@@ -36,3 +36,22 @@ func GetInventoryItems() ([]models.InventoryItem, error) {
 
 	return items, nil
 }
+
+func CreateInventoryItems(item models.InventoryItem) (int, error) {
+	dbConn, err := db.InitDB()
+	if err != nil {
+		return 0, fmt.Errorf("Не удалось подключится к базе данных, %v", err)
+	}
+	defer dbConn.Close()
+
+	query := `INSERT INTO inventory (name, quantity, unit, price_per_unit) VALUES ($1, $2, $3, $4) RETURNING id`
+
+	var id int
+
+	err = dbConn.QueryRow(query, item.Name, item.Quantity, item.Unit, item.PricePerUnit).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("не удалось создать элемент инвентаря: %v", err)
+	}
+
+	return id, nil
+}

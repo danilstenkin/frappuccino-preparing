@@ -25,8 +25,12 @@ func SetupRouter() {
 	})
 
 	http.HandleFunc("/inventory", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
+		if r.Method == http.MethodPost {
+			handlers.CreateInventoryHandler(w, r)
+		} else if r.Method == http.MethodGet {
 			handlers.GetInventoryHandler(w, r)
+		} else {
+			http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		}
 	})
 
