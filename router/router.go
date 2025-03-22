@@ -43,6 +43,8 @@ func SetupRouter() {
 			handlers.GetInventoryByIDHandler(w, r)
 		} else if r.Method == http.MethodPut {
 			handlers.UpdateInventoryHandler(w, r)
+		} else if r.Method == http.MethodDelete {
+			handlers.DeleteInventoryHandler(w, r)
 		} else {
 			http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		}
