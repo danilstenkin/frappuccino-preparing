@@ -137,15 +137,22 @@ func DeleteMenuItem(idstr string) error {
 	}
 	defer dbConn.Close()
 
-	// Шаг 1: Удаляем зависимые записи из order_items
-	deleteQuery := `DELETE FROM order_items WHERE menu_item_id = $1`
-	_, err = dbConn.Exec(deleteQuery, idint)
+	deleteOrderItemsQuery := `DELETE FROM order_items WHERE menu_item_id = $1`
+	_, err = dbConn.Exec(deleteOrderItemsQuery, idint)
 	if err != nil {
 		log.Println("Ошибка при удалении зависимых записей из order_items:", err)
 		return fmt.Errorf("не удалось удалить зависимые записи из order_items: %v", err)
 	}
 
-	// Шаг 2: Удаляем элемент из menu_items
+	// Шаг 2: Удаляем зависимости из menu_item_ingredients
+	deleteIngredientsQuery := `DELETE FROM menu_item_ingredients WHERE menu_item_id = $1`
+	_, err = dbConn.Exec(deleteIngredientsQuery, idint)
+	if err != nil {
+		log.Println("Ошибка при удалении зависимых записей из menu_item_ingredients:", err)
+		return fmt.Errorf("не удалось удалить зависимости из menu_item_ingredients: %v", err)
+	}
+
+	// Шаг 3: Удаляем элемент из menu_items
 	query := `DELETE FROM menu_items WHERE id = $1`
 	result, err := dbConn.Exec(query, idint)
 	if err != nil {
