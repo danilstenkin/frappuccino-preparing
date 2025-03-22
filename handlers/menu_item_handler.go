@@ -116,3 +116,40 @@ func GetMenuItemsIDHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(items)
 }
+
+func UpdateMenuItemHandler(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/menu/")
+
+	if id == "" {
+		http.Error(w, "ID not found", http.StatusBadRequest)
+		return
+	}
+
+	var item models.MenuItem
+
+	// Декодируем JSON
+	err := json.NewDecoder(r.Body).Decode(&item)
+	if err != nil {
+		http.Error(w, "Invalid JSON format", http.StatusBadRequest)
+		return
+	}
+
+	// Простая валидация
+	if item.Name == "" {
+		http.Error(w, "Name is required", http.StatusBadRequest)
+		return
+	}
+	if item.Price <= 0 {
+		http.Error(w, "Price must be greater than 0", http.StatusBadRequest)
+		return
+	}
+
+	// Обновляем в БД
+	err = repositories.UpdateMenuItem(id, item)
+	if err != nil {
+		http.Error(w, "Не удалось обновить элемент меню: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
