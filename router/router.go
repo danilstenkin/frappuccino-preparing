@@ -21,6 +21,10 @@ func SetupRouter() {
 			handlers.DeleteMenuItemHandler(w, r)
 		} else if r.Method == http.MethodGet {
 			handlers.GetMenuItemsIDHandler(w, r)
+		} else if r.Method == http.MethodPut {
+			handlers.UpdateMenuItemHandler(w, r)
+		} else {
+			http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		}
 	})
 
