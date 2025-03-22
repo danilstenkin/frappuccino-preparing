@@ -117,3 +117,40 @@ func UpdateInventoryItem(idStr string, item models.InventoryItem) error {
 
 	return nil
 }
+
+func DeleteInventoryItem(idstr string) error {
+	idInt, err := strconv.Atoi(idstr)
+	if err != nil {
+		return fmt.Errorf("ошибка при преобразовании ID: %v", err)
+	}
+
+	// Подключаемся к базе данных
+	dbConn, err := db.InitDB()
+	if err != nil {
+		log.Println("Не удалось подключиться к БД:", err)
+		return fmt.Errorf("не удалось подключиться к базе данных: %v", err)
+	}
+	defer dbConn.Close()
+
+	deleteIngredientsQuery := `DELETE FROM menu_item_ingredients WHERE ingredient_id = $1`
+	_, err = dbConn.Exec(deleteIngredientsQuery, idInt)
+	if err != nil {
+		return fmt.Errorf("не удалось удалить зависимости из menu_item_ingredients: %v", err)
+	}
+
+	query := `DELETE FROM inventory WHERE id = $1`
+	result, err := dbConn.Exec(query, idInt)
+	if err != nil {
+		return fmt.Errorf("ошибка при удалении элемента инвентаря: %v", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("ошибка получения количества удалённых строк: %v", err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("элемент инвентаря с ID %v не найден", idInt)
+	}
+
+	return nil
+}
