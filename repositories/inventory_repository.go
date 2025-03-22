@@ -1,9 +1,12 @@
 package repositories
 
 import (
+	"database/sql"
 	"fmt"
 	"frappuccino/db"
 	"frappuccino/models"
+	"log"
+	"strconv"
 )
 
 func GetInventoryItems() ([]models.InventoryItem, error) {
@@ -54,4 +57,31 @@ func CreateInventoryItems(item models.InventoryItem) (int, error) {
 	}
 
 	return id, nil
+}
+
+func GetInventoryItemByID(idstr string) (models.InventoryItem, error) {
+	idInt, err := strconv.Atoi(idstr)
+	if err != nil {
+		return models.InventoryItem{}, fmt.Errorf("ошибка при преобразовании ID: %v", err)
+	}
+
+	dbConn, err := db.InitDB()
+	if err != nil {
+		log.Println("Не удалось подключиться к БД:", err)
+		return models.InventoryItem{}, fmt.Errorf("не удалось подключиться к базе данных: %v", err)
+	}
+	defer dbConn.Close()
+
+	var item models.InventoryItem
+
+	query := `SELECT id, name, quantity, unit, price_per_unit, last_updated FROM inventory WHERE id = $1`
+	err = dbConn.QueryRow(query, idInt).Scan(&item.ID, &item.Name, &item.Quantity, &item.Unit, &item.PricePerUnit, &item.LastUpdated)
+
+	if err == sql.ErrNoRows {
+		return models.InventoryItem{}, fmt.Errorf("инвентарь с таким ID не найден")
+	} else if err != nil {
+		return models.InventoryItem{}, fmt.Errorf("ошибка при получении данных: %v", err)
+	}
+
+	return item, nil
 }
