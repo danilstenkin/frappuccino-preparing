@@ -81,3 +81,48 @@ func GetInventoryByIDHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(item)
 }
+
+func UpdateInventoryHandler(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/inventory/")
+
+	if id == "" {
+		http.Error(w, "ID not found", http.StatusBadRequest)
+		return
+	}
+
+	var item models.InventoryItem
+
+	// Декодируем JSON
+	err := json.NewDecoder(r.Body).Decode(&item)
+	if err != nil {
+		http.Error(w, "Invalid JSON format", http.StatusBadRequest)
+		return
+	}
+
+	// Простая валидация
+	if item.Name == "" {
+		http.Error(w, "Name is required", http.StatusBadRequest)
+		return
+	}
+	if item.Quantity <= 0 {
+		http.Error(w, "Quantity must be greater than 0", http.StatusBadRequest)
+		return
+	}
+	if item.Unit == "" {
+		http.Error(w, "Unit is required", http.StatusBadRequest)
+		return
+	}
+	if item.PricePerUnit <= 0 {
+		http.Error(w, "Price per unit must be greater than 0", http.StatusBadRequest)
+		return
+	}
+
+	// Обновляем в БД
+	err = repositories.UpdateInventoryItem(id, item)
+	if err != nil {
+		http.Error(w, "Не удалось обновить элемент инвентаря: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
