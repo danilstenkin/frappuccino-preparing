@@ -6,6 +6,7 @@ import (
 	"frappuccino/repositories"
 	"log"
 	"net/http"
+	"strings"
 )
 
 func GetInventoryHandler(w http.ResponseWriter, r *http.Request) {
@@ -61,4 +62,22 @@ func CreateInventoryHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(response)
+}
+
+func GetInventoryByIDHandler(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/inventory/")
+
+	if id == "" {
+		http.Error(w, "ID not found", http.StatusBadRequest)
+		return
+	}
+
+	item, err := repositories.GetInventoryItemByID(id)
+	if err != nil {
+		http.Error(w, "Не удалось получить элемент инвентаря: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(item)
 }
