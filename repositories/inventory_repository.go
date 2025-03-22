@@ -85,3 +85,35 @@ func GetInventoryItemByID(idstr string) (models.InventoryItem, error) {
 
 	return item, nil
 }
+
+func UpdateInventoryItem(idStr string, item models.InventoryItem) error {
+	idInt, err := strconv.Atoi(idStr)
+	if err != nil {
+		return fmt.Errorf("неправильный формат ID: %v", err)
+	}
+
+	dbConn, err := db.InitDB()
+	if err != nil {
+		return fmt.Errorf("не удалось подключиться к БД: %v", err)
+	}
+
+	defer dbConn.Close()
+
+	query := `UPDATE inventory SET name=$1, quantity=$2, unit=$3, price_per_unit=$4, last_updated=NOW() WHERE id=$5`
+
+	result, err := dbConn.Exec(query, item.Name, item.Quantity, item.Unit, item.PricePerUnit, idInt)
+	if err != nil {
+		return fmt.Errorf("ошибка при обновлении элемента меню: %v", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("ошибка получения количества обновленных строк: %v", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("элемент меню с ID %v не найден", idInt)
+	}
+
+	return nil
+}
