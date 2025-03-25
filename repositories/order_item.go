@@ -114,3 +114,83 @@ func DeleteOrderItem(idStr string) error {
 
 	return nil
 }
+
+func HasEnoughIngredients(menuItemID int, quantity int) (bool, error) {
+	dbConn, err := db.InitDB()
+	if err != nil {
+		return false, fmt.Errorf("не удалось подключиться к БД: %v", err)
+	}
+	defer dbConn.Close()
+
+	query := `
+	SELECT 
+		i.name,
+		i.quantity AS stock_quantity,
+		mii.quantity_required * $2 AS required_quantity
+	FROM 
+		menu_item_ingredients mii
+	JOIN 
+		inventory i ON mii.ingredient_id = i.id
+	WHERE 
+		mii.menu_item_id = $1
+	`
+
+	rows, err := dbConn.Query(query, menuItemID, quantity)
+	if err != nil {
+		return false, fmt.Errorf("ошибка при проверке остатков: %v", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var name string
+		var stock, required int
+		if err := rows.Scan(&name, &stock, &required); err != nil {
+			return false, fmt.Errorf("ошибка при сканировании остатков: %v", err)
+		}
+
+		if stock < required {
+			return false, fmt.Errorf("недостаточно ингредиента: %s (нужно %d, есть %d)", name, required, stock)
+		}
+	}
+
+	return true, nil
+}
+
+func DeductIngredients(menuItemID int, quantity int) error {
+	dbConn, err := db.InitDB()
+	if err != nil {
+		return fmt.Errorf("не удалось подключиться к БД: %v", err)
+	}
+	defer dbConn.Close()
+
+	query := `
+	SELECT 
+		ingredient_id,
+		quantity_required * $2 AS total_to_deduct
+	FROM 
+		menu_item_ingredients
+	WHERE 
+		menu_item_id = $1
+	`
+
+	rows, err := dbConn.Query(query, menuItemID, quantity)
+	if err != nil {
+		return fmt.Errorf("ошибка при получении ингредиентов: %v", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var ingredientID, total int
+		if err := rows.Scan(&ingredientID, &total); err != nil {
+			return fmt.Errorf("ошибка при сканировании: %v", err)
+		}
+
+		update := `UPDATE inventory SET quantity = quantity - $1 WHERE id = $2`
+		_, err := dbConn.Exec(update, total, ingredientID)
+		if err != nil {
+			return fmt.Errorf("ошибка при списании ингредиента #%d: %v", ingredientID, err)
+		}
+	}
+
+	return nil
+}

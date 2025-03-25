@@ -44,9 +44,25 @@ func CreateOrderItemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ok, err := repositories.HasEnoughIngredients(item.MenuItemID, item.Quantity)
+	if err != nil {
+		http.Error(w, "Ошибка проверки остатков: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !ok {
+		http.Error(w, "Недостаточно ингредиентов для этого блюда", http.StatusBadRequest)
+		return
+	}
+
 	id, err := repositories.CreateOrderItem(item)
 	if err != nil {
 		http.Error(w, "Ошибка при добавлении позиции: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	err = repositories.DeductIngredients(item.MenuItemID, item.Quantity)
+	if err != nil {
+		http.Error(w, "Ошибка при списании ингредиентов: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
