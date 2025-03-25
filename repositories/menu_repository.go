@@ -311,3 +311,22 @@ func UpdateMenuItem(idStr string, item models.MenuItem) error {
 
 	return nil
 }
+
+func AddIngredientToMenu(menuItemID int, ingredientID int, quantityRequired int) error {
+	// Подключаемся к базе данных
+	dbConn, err := db.InitDB()
+	if err != nil {
+		return fmt.Errorf("failed to connect to the database: %v", err)
+	}
+	defer dbConn.Close()
+
+	// Добавляем ингредиент в menu_item_ingredients
+	query := `INSERT INTO menu_item_ingredients (menu_item_id, ingredient_id, quantity_required) 
+			  VALUES ($1, $2, $3)`
+	_, err = dbConn.Exec(query, menuItemID, ingredientID, quantityRequired)
+	if err != nil {
+		return fmt.Errorf("error inserting ingredient into menu_item_ingredients: %v", err)
+	}
+
+	return nil
+}

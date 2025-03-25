@@ -10,4 +10,10 @@ type MenuItem struct {
 	CustomizationOptions map[string]interface{} `json:"customization_options"`
 	Size                 string                 `json:"size"`
 	Metadata             map[string]interface{} `json:"metadata"`
+	Ingredients          []IngredientInfo       `json:"ingredients"`
+}
+
+type IngredientInfo struct {
+	IngredientID     int `json:"ingredient_id"`
+	QuantityRequired int `json:"quantity_required"`
 }

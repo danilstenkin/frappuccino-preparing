@@ -13,7 +13,6 @@ import (
 )
 
 func CreateMenuItemHandler(w http.ResponseWriter, r *http.Request) {
-	// Только POST-запросы
 	if r.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
@@ -46,6 +45,13 @@ func CreateMenuItemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Проверяем, существуют ли все ингредиенты в инвентаре
+	err = utils.ValidateIngredients(item.Ingredients)
+	if err != nil {
+		http.Error(w, "Ingredient validation failed: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// Подключаемся к базе данных
 	dbConn, err := db.InitDB()
 	if err != nil {
@@ -58,6 +64,15 @@ func CreateMenuItemHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "Could not create menu item: "+err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Добавляем ингредиенты в таблицу menu_item_ingredients
+	for _, ingredient := range item.Ingredients {
+		err = repositories.AddIngredientToMenu(id, ingredient.IngredientID, ingredient.QuantityRequired)
+		if err != nil {
+			http.Error(w, "Failed to add ingredient to menu: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// Отправляем успешный ответ с ID нового элемента
