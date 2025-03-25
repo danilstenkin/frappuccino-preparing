@@ -50,6 +50,44 @@ func SetupRouter() {
 		}
 	})
 
+	http.HandleFunc("/orders", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			handlers.GetOrdersHandler(w, r)
+		} else if r.Method == http.MethodPost {
+			handlers.CreateOrderHandler(w, r)
+		} else {
+			http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		}
+	})
+
+	http.HandleFunc("/orders/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			handlers.GetOrderByIDHandler(w, r)
+		} else if r.Method == http.MethodPut {
+			handlers.UpdateOrderHandler(w, r)
+		} else {
+			http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		}
+	})
+
+	http.HandleFunc("/order-items", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			handlers.CreateOrderItemHandler(w, r)
+		} else {
+			http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		}
+	})
+
+	http.HandleFunc("/order-items/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			handlers.GetOrderItemsHandler(w, r)
+		} else if r.Method == http.MethodDelete {
+			handlers.DeleteOrderItemHandler(w, r)
+		} else {
+			http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		}
+	})
+
 	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
 		panic("Failed to start server: " + err.Error())
