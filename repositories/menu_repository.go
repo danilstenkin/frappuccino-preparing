@@ -6,36 +6,154 @@ import (
 	"fmt"
 	"frappuccino/db"
 	"frappuccino/models"
+	"frappuccino/utils"
 	"log"
 	"strconv"
 
 	"github.com/lib/pq"
 )
 
+// CREATE ---------------------------------------------------------------------------
 func CreateMenuItem(db *sql.DB, item models.MenuItem) (int, error) {
-	// Сериализуем map[string]interface{} в JSON
 	customizationOptionsJSON, err := json.Marshal(item.CustomizationOptions)
 	if err != nil {
 		return 0, fmt.Errorf("could not serialize customization_options: %v", err)
 	}
+
 	metadataJSON, err := json.Marshal(item.Metadata)
 	if err != nil {
 		return 0, fmt.Errorf("could not serialize metadata: %v", err)
 	}
 
-	// Подготовка SQL-запроса для вставки данных
 	query := `INSERT INTO menu_items (name, description, price, category, allergens, customization_options, size, metadata) 
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`
 
 	var id int
+
 	err = db.QueryRow(query, item.Name, item.Description, item.Price, pq.Array(item.Category), pq.Array(item.Allergens),
 		customizationOptionsJSON, item.Size, metadataJSON).Scan(&id)
+
 	if err != nil {
 		return 0, fmt.Errorf("could not insert menu item: %v", err)
 	}
 	return id, nil
 }
 
+// DELETE --------------------------------------------------------------------------------------
+func DeleteMenuItem(idstr string) error {
+	const logPrefix = "[DeleteMenuItem]"
+
+	idint, err := strconv.Atoi(idstr)
+	if err != nil {
+		log.Printf("%s incorrect ID: %v", logPrefix, err)
+		return fmt.Errorf("Error converting ID: %v", err)
+	}
+
+	dbConn, err := db.InitDB()
+	if err != nil {
+		log.Printf("%s Failed to connect to DB: %v", logPrefix, err)
+		return fmt.Errorf("failed to connect to database: %v", err)
+	}
+	defer dbConn.Close()
+
+	log.Printf("%s Connection to the database was successful", logPrefix)
+
+	if err := DeleteMenuItemDependencies(dbConn, idint); err != nil {
+		return err
+	}
+
+	log.Printf("%s Remove item from menu_items with ID= %d", logPrefix, idint)
+	query := `DELETE FROM menu_items WHERE id = $1`
+	result, err := dbConn.Exec(query, idint)
+	if err != nil {
+		log.Printf("%s Error while deleting from menu_items: %v", logPrefix, err)
+		return fmt.Errorf("failed to delete menu item: %v", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		log.Printf("%s Error getting number of deleted rows: %v", logPrefix, err)
+		return fmt.Errorf("error getting number of deleted rows: %v", err)
+	}
+	if rowsAffected == 0 {
+		log.Printf("%s Menu item with ID %d not found", logPrefix, idint)
+		return fmt.Errorf("menu item with ID %v not found", idint)
+	}
+
+	log.Printf("%s Menu item with ID %d successfully removed", logPrefix, idint)
+	return nil
+}
+
+// UPDATE ------------------------------------------------------------------
+func UpdateMenuItem(idStr string, item models.MenuItem) error {
+	const logPrefix = "[UpdateMenuItem]"
+
+	idInt, err := strconv.Atoi(idStr)
+	if err != nil {
+		log.Printf("%s Invalid ID format: %v", logPrefix, err)
+		return fmt.Errorf("invalid ID format: %v", err)
+	}
+
+	dbConn, err := db.InitDB()
+	if err != nil {
+		log.Printf("%s Failed to connect to DB: %v", logPrefix, err)
+		return fmt.Errorf("failed to connect to the database: %v", err)
+	}
+	defer dbConn.Close()
+
+	if err := utils.ValidateIngredients(item.Ingredients); err != nil {
+		log.Printf("%s Ingredient validation failed: %v", logPrefix, err)
+		return fmt.Errorf("ingredient validation failed: %v", err)
+	}
+
+	customizationOptionsJSON, err := json.Marshal(item.CustomizationOptions)
+	if err != nil {
+		return fmt.Errorf("could not serialize customization_options: %v", err)
+	}
+	metadataJSON, err := json.Marshal(item.Metadata)
+	if err != nil {
+		return fmt.Errorf("could not serialize metadata: %v", err)
+	}
+
+	query := `UPDATE menu_items 
+		SET name=$1, description=$2, price=$3, category=$4, allergens=$5, 
+		    customization_options=$6, size=$7, metadata=$8 
+		WHERE id=$9`
+	result, err := dbConn.Exec(query,
+		item.Name, item.Description, item.Price,
+		pq.Array(item.Category), pq.Array(item.Allergens),
+		customizationOptionsJSON, item.Size, metadataJSON, idInt,
+	)
+	if err != nil {
+		log.Printf("%s Failed to update menu item: %v", logPrefix, err)
+		return fmt.Errorf("failed to update menu item: %v", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %v", err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("menu item with ID %d not found", idInt)
+	}
+
+	if err := DeleteMenuItemDependencies(dbConn, idInt); err != nil {
+		log.Printf("%s Failed to delete dependencies: %v", logPrefix, err)
+		return err
+	}
+
+	for _, ingredient := range item.Ingredients {
+		if err := AddIngredientToMenu(idInt, ingredient.IngredientID, ingredient.QuantityRequired); err != nil {
+			log.Printf("%s Failed to add ingredient ID %d: %v", logPrefix, ingredient.IngredientID, err)
+			return err
+		}
+	}
+
+	log.Printf("%s Menu item ID %d updated successfully", logPrefix, idInt)
+	return nil
+}
+
+// GET -----------------------------------------------------------------------------------
 func GetMenuItems() ([]models.MenuItem, error) {
 	// Подключаемся к базе данных
 	dbConn, err := db.InitDB()
@@ -122,59 +240,7 @@ func GetMenuItems() ([]models.MenuItem, error) {
 	return items, nil
 }
 
-func DeleteMenuItem(idstr string) error {
-	// Преобразуем строку в int
-	idint, err := strconv.Atoi(idstr)
-	if err != nil {
-		return fmt.Errorf("ошибка при преобразовании ID: %v", err)
-	}
-
-	// Подключаемся к базе данных
-	dbConn, err := db.InitDB()
-	if err != nil {
-		log.Println("Не удалось подключиться к БД:", err)
-		return fmt.Errorf("не удалось подключиться к базе данных: %v", err)
-	}
-	defer dbConn.Close()
-
-	deleteOrderItemsQuery := `DELETE FROM order_items WHERE menu_item_id = $1`
-	_, err = dbConn.Exec(deleteOrderItemsQuery, idint)
-	if err != nil {
-		log.Println("Ошибка при удалении зависимых записей из order_items:", err)
-		return fmt.Errorf("не удалось удалить зависимые записи из order_items: %v", err)
-	}
-
-	// Шаг 2: Удаляем зависимости из menu_item_ingredients
-	deleteIngredientsQuery := `DELETE FROM menu_item_ingredients WHERE menu_item_id = $1`
-	_, err = dbConn.Exec(deleteIngredientsQuery, idint)
-	if err != nil {
-		log.Println("Ошибка при удалении зависимых записей из menu_item_ingredients:", err)
-		return fmt.Errorf("не удалось удалить зависимости из menu_item_ingredients: %v", err)
-	}
-
-	// Шаг 3: Удаляем элемент из menu_items
-	query := `DELETE FROM menu_items WHERE id = $1`
-	result, err := dbConn.Exec(query, idint)
-	if err != nil {
-		log.Println("Ошибка при удалении элемента из menu_items:", err)
-		return fmt.Errorf("не удалось удалить элемент меню: %v", err)
-	}
-
-	// Получаем количество затронутых строк
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		log.Println("Ошибка при получении количества удалённых строк:", err)
-		return fmt.Errorf("ошибка при получении количества удалённых строк: %v", err)
-	}
-
-	// Если строка не была удалена
-	if rowsAffected == 0 {
-		return fmt.Errorf("элемент меню с ID %v не найден", idint)
-	}
-
-	return nil
-}
-
+// GET BY ID ------------------------------------------------------------------------------
 func GetMenuItemByID(idstr string) ([]models.MenuItem, error) {
 	// Преобразуем строку в int
 	idint, err := strconv.Atoi(idstr)
@@ -267,66 +333,4 @@ func GetMenuItemByID(idstr string) ([]models.MenuItem, error) {
 	// Возвращаем элемент меню в виде слайса (т.к. мы ожидаем слайс в API)
 	items := []models.MenuItem{item}
 	return items, nil
-}
-
-func UpdateMenuItem(idStr string, item models.MenuItem) error {
-	// Преобразуем ID в int
-	idInt, err := strconv.Atoi(idStr)
-	if err != nil {
-		return fmt.Errorf("неправильный формат ID: %v", err)
-	}
-
-	dbConn, err := db.InitDB()
-	if err != nil {
-		return fmt.Errorf("не удалось подключиться к БД: %v", err)
-	}
-	defer dbConn.Close()
-
-	// Сериализация JSONB полей
-	customizationOptionsJSON, err := json.Marshal(item.CustomizationOptions)
-	if err != nil {
-		return fmt.Errorf("could not serialize customization_options: %v", err)
-	}
-	metadataJSON, err := json.Marshal(item.Metadata)
-	if err != nil {
-		return fmt.Errorf("could not serialize metadata: %v", err)
-	}
-
-	// Обновление записи
-	query := `UPDATE menu_items SET name=$1, description=$2, price=$3, category=$4, allergens=$5, customization_options=$6, size=$7, metadata=$8 WHERE id=$9`
-
-	result, err := dbConn.Exec(query, item.Name, item.Description, item.Price, pq.Array(item.Category), pq.Array(item.Allergens),
-		customizationOptionsJSON, item.Size, metadataJSON, idInt)
-	if err != nil {
-		return fmt.Errorf("ошибка при обновлении элемента меню: %v", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("ошибка получения количества обновленных строк: %v", err)
-	}
-	if rowsAffected == 0 {
-		return fmt.Errorf("элемент меню с ID %v не найден", idInt)
-	}
-
-	return nil
-}
-
-func AddIngredientToMenu(menuItemID int, ingredientID int, quantityRequired int) error {
-	// Подключаемся к базе данных
-	dbConn, err := db.InitDB()
-	if err != nil {
-		return fmt.Errorf("failed to connect to the database: %v", err)
-	}
-	defer dbConn.Close()
-
-	// Добавляем ингредиент в menu_item_ingredients
-	query := `INSERT INTO menu_item_ingredients (menu_item_id, ingredient_id, quantity_required) 
-			  VALUES ($1, $2, $3)`
-	_, err = dbConn.Exec(query, menuItemID, ingredientID, quantityRequired)
-	if err != nil {
-		return fmt.Errorf("error inserting ingredient into menu_item_ingredients: %v", err)
-	}
-
-	return nil
 }
